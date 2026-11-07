@@ -86,14 +86,19 @@ exports.deleteUser = async (req, res) => {
   try {
     session.startTransaction();
     const user = await User.findById(req.params.id).session(session);
+    console.log('deleteUser received id:', req.params.id);
     if (!user) {
       await session.abortTransaction();
       session.endSession();
       return res.status(404).json({ success: false, message: 'User not found' });
     }
-    await Order.deleteMany({ user: req.params.id }).session(session);
+    const matchingOrders = await Order.countDocuments({ user: req.params.id }).session(session);
+    console.log('matching orders before delete:', matchingOrders);
+    const deleteResult = await Order.deleteMany({ user: req.params.id }).session(session);
+    console.log('deleteMany deletedCount:', deleteResult.deletedCount);
     await User.findByIdAndDelete(req.params.id).session(session);
     await session.commitTransaction();
+    console.log('transaction committed successfully');
     res.json({ success: true, message: 'Deleted' });
   } catch (error) {
     await session.abortTransaction();
