@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const User = require('../models/model');
 const Order = require('../models/Order');
 const bcrypt = require('bcryptjs');
@@ -81,11 +82,24 @@ exports.getUserById = async (req, res) => {
 };
 
 exports.deleteUser = async (req, res) => {
+  const session = await mongoose.startSession();
   try {
-    await User.findByIdAndDelete(req.params.id);
+    session.startTransaction();
+    const user = await User.findById(req.params.id).session(session);
+    if (!user) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    await Order.deleteMany({ user: req.params.id }).session(session);
+    await User.findByIdAndDelete(req.params.id).session(session);
+    await session.commitTransaction();
     res.json({ success: true, message: 'Deleted' });
   } catch (error) {
+    await session.abortTransaction();
     res.status(500).json({ success: false, message: error.message });
+  } finally {
+    session.endSession();
   }
 };
 
